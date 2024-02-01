@@ -12,8 +12,33 @@ public class CameraSelector : MonoBehaviour
 
     public int DesiredWidth = 1920;
     public int DesiredHeight = 1440;
+
+    /// <summary>
+    /// 
+    /// </summary>
     public bool UseDepth = true;
+
+    public bool MultiCamSupported = true;
+
+    /// <summary>
+    /// 
+    /// </summary>
     public bool UseFrontCamera = false;
+
+    /// <summary>
+    /// -1 の場合は指定なし。それ以外の場合は一致する camera id のものを選択する
+    /// </summary>
+    public int CameraId = -1;
+
+    /// <summary>
+    /// -1 の場合は指定なし。
+    /// </summary>
+    public int CameraFPS = -1;
+
+    /// <summary>
+    /// -1 の場合は指定なし。
+    /// </summary>
+    public int TofCameraId = -1;
 
     public int ToFDelayCounter = 0;
 
@@ -44,9 +69,31 @@ public class CameraSelector : MonoBehaviour
         for (int i = 0; i < properties.resolutions.Length; i++)
         {
             ResolutionProperty rp = properties.resolutions[i];
-            log += "[" + i + "]: " + rp + "\r\n";
+            log += "[" + i + "]:[" + rp.cameraId + "]: " + rp + "\r\n";
 
             if ((rp.lensFacing == 0) != UseFrontCamera)
+            {
+                continue;
+            }
+
+            /*
+            if (UseDepth && !rp.avfDepthSupported)
+            {
+                continue;
+            }
+            //*/
+
+            if (MultiCamSupported && !rp.avfMultiCamSupported)
+            {
+                continue;
+            }
+
+            if (CameraId != -1 && CameraId != int.Parse(rp.cameraId))
+            {
+                continue;
+            }
+
+            if (CameraFPS != -1 && CameraFPS != rp.frameRate)
             {
                 continue;
             }
@@ -60,8 +107,11 @@ public class CameraSelector : MonoBehaviour
             }
         }
 
-        Debug.Log("select: [" + selectedIndex + "] : " + selectedResolutionProperty + "\r\n");
-        log += "select: [" + selectedIndex + "] : " + selectedResolutionProperty + "\r\n";
+        {
+            ResolutionProperty rp = selectedResolutionProperty;
+            Debug.Log("select: [" + selectedIndex + "]:[" + rp.cameraId + "]: " + selectedResolutionProperty + "\r\n");
+            log = "color: [" + selectedIndex + "]:[" + rp.cameraId + "]: " + selectedResolutionProperty + "\r\n\r\n" + log;
+        }
 
 
         tmgr = FindObjectOfType<TofArTofManager>();
@@ -77,12 +127,19 @@ public class CameraSelector : MonoBehaviour
             for(int i = 0; i < tofProperties.configurations.Length; i++){
                 CameraConfigurationProperty config = tofProperties.configurations[i];
 
-                if (config.colorCameraId != selectedResolutionProperty.cameraId)
+                // Android でのみ使う
+                /*
+                if (selectedResolutionProperty.cameraId != config.colorCameraId)
+                {
+                    continue;
+                }
+                //*/
+                if (TofCameraId != -1 && TofCameraId != int.Parse(config.cameraId))
                 {
                     continue;
                 }
 
-                log += "[" + i + "]: " + config.width + " x " + config.height + "\r\n";
+                log += "[" + i + "]:[" + config.cameraId + "] " + config.width + " x " + config.height + "\r\n";
 
                 if ((config.lensFacing == 0) != UseFrontCamera)
                 {
@@ -94,11 +151,20 @@ public class CameraSelector : MonoBehaviour
                 {
                     continue;
                 }
+
                 selectedTofConfig = config;
+                tofSelectedIndex = i;
             }
 
-            Debug.Log("depth selected: " + selectedTofConfig.width + " x " + selectedTofConfig.height);
-            log += ("depth selected: " + selectedTofConfig.width + " x " + selectedTofConfig.height + "\r\n");
+            if (selectedTofConfig != null)
+            {
+                Debug.Log("depth: " + selectedTofConfig.width + " x " + selectedTofConfig.height);
+                log = ("depth: [" + tofSelectedIndex + "]:[" + selectedTofConfig.cameraId + "]: color cam id=" + selectedTofConfig.colorCameraId + ": " + selectedTofConfig.width + " x " + selectedTofConfig.height + " " + selectedTofConfig.frameRate + " FPS " + "\r\n\r\n") + log;
+            }
+            else
+            {
+                log = ("depth: not found.\r\n\r\n") + log;
+            }
         }
 
         if (UseDepth && tmgr && selectedTofConfig != null && ToFDelayCounter == 0)
